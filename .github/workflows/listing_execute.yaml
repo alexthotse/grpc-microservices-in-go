@@ -15,12 +15,12 @@ on:
 jobs:
   execute-listing:
     name: "Executing listing ${{ github.event.inputs.listing }}"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_ENV
+          echo "go-mod=$(go env.GOMODCACHE)" >> $GITHUB_ENV
 
       - uses: actions/checkout@v2
 
@@ -32,19 +32,24 @@ jobs:
       - name: Install Protoc Dependencies
         run: |
           sudo apt-get install -y protobuf-compiler golang-goprotobuf-dev
+          export GOBIN=$HOME/go/bin
+          export PATH=$PATH:$GOBIN
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-      # Go build cache
       - name: Go Build Cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ env.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Run
         run: |
-          cd "$(find . -name listing_${{ github.event.inputs.listing }})"
-          ./run.sh ${{ env.GITHUB_USERNAME }} ${{ env.GITHUB_EMAIL }} 
-          
+          dir=$(find . -name "listing_${{ github.event.inputs.listing }}")
+          if [ -z "$dir" ]; then
+            echo "Error: Listing directory not found"
+            exit 1
+          fi
+          cd "$dir"
+          ./run.sh ${{ env.GITHUB_USERNAME }} ${{ env.GITHUB_EMAIL }}
 
